@@ -61,13 +61,12 @@ Enter your desired bucket name is in the **SageMaker Configurations section**.
 ### Stages
 
 The solution is split into the following stages. Each stage has it's own notebook
-    - Demo: You can try a demo SageMaker endpoint with an image of a handwritting passage
-    - Introduction (here): a high-level overview of the solution
-    - Label own data: notebook to prepare your own dataset for labelling
-    - Visualise your own data
-    - Model training: notebook to train models with your labelled dataset
-    - Endpoint updates: Notebooks to build SageMaker endpoints with the trained mode
-
+- Demo: You can try a demo SageMaker endpoint with an image of a handwritting passage
+- Introduction (here): a high-level overview of the solution
+- Label own data: notebook to prepare your own dataset for labelling
+- Visualise your own data
+- Model training: notebook to train models with your labelled dataset
+- Endpoint updates: Notebooks to build SageMaker endpoints with the trained mode
 
 ## License
 
