@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Stack for SageMaker-handwriting-recognition sagemaker permission deployment"
+
+Parameters:
+  SolutionPrefix:
+    Type: String
+  S3BucketName:
+    Type: String
+  SolutionsS3BucketNamePrefix:
+    Type: String
+
+Resources:
+  SageMakerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${SolutionPrefix}-nb-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - sagemaker.amazonaws.com
+            Action:
+            - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Using explicit name to restrict permissions
+
+  SageMakerIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${SolutionPrefix}-nb-policy"
+      Roles:
+        - !Ref SageMakerIAMRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - sagemaker:ListTrainingJobs
+            - sagemaker:ListModels
+            - sagemaker:ListWorkforces
+            - sagemaker:ListWorkteams
+            - sagemaker:DeleteWorkteam
+            - sagemaker:DeleteWorkforce
+          Resource:
+            - '*'
+        - Effect: Allow
+          Action:
+            - sagemaker:CreateTrainingJob
+            - sagemaker:CreateModel
+            - sagemaker:CreateEndpointConfig
+            - sagemaker:CreateEndpoint
+            - sagemaker:CreateProcessingJob
+            - sagemaker:DescribeTrainingJob
+            - sagemaker:DescribeProcessingJob
+            - sagemaker:DescribeEndpointConfig
+            - sagemaker:DescribeEndpoint
+            - sagemaker:DescribeWorkteam
+            - sagemaker:DeleteEndpointConfig
+            - sagemaker:DeleteEndpoint
+            - sagemaker:DeleteModel
+            - sagemaker:InvokeEndpoint
+            - sagemaker:CreateHyperParameterTuningJob
+            - sagemaker:CreateWorkforce
+            - sagemaker:CreateWorkteam
+            - sagemaker:CreateLabelingJob
+          Resource:
+          - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*"
+        - Effect: Allow
+          Action:
+            - ecr:GetAuthorizationToken
+          Resource:
+            - "*"
+        - Effect: Allow
+          Action:
+            - ecr:GetDownloadUrlForLayer
+            - ecr:BatchGetImage
+          Resource:
+            - "*"
+        - Effect: Allow
+          Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:CreateRepository
+            - ecr:DescribeRepositories
+            - ecr:InitiateLayerUpload
+            - ecr:CompleteLayerUpload
+            - ecr:UploadLayerPart
+            - ecr:TagResource
+            - ecr:PutImage
+          Resource:
+            - !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*"
+        - Effect: Allow
+          Action:
+          - cloudwatch:PutMetricData
+          - cloudwatch:GetMetricData
+          - cloudwatch:GetMetricStatistics
+          - cloudwatch:ListMetrics
+          Resource:
+          - "*"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:DescribeLogStreams
+          - logs:GetLogEvents
+          - logs:PutLogEvents
+          Resource:
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+        - Effect: Allow
+          Action:
+          - iam:PassRole
+          Resource:
+          - !GetAtt SageMakerIAMRole.Arn
+          Condition:
+            StringEquals:
+              iam:PassedToService: sagemaker.amazonaws.com
+        - Effect: Allow
+          Action:
+          - iam:GetRole
+          Resource:
+          - !GetAtt SageMakerIAMRole.Arn
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - s3:GetBucketLocation
+          Resource:
+            - !Sub "arn:aws:s3:::${S3BucketName}"
+            - !Sub "arn:aws:s3:::${S3BucketName}/*"
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:GetObject
+          Resource:
+          - !Sub "arn:aws:s3:::${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+          - !Sub "arn:aws:s3:::${SolutionsS3BucketNamePrefix}-${AWS::Region}/*"
+        - Effect: Allow
+          Action:
+          - ec2:DescribeVpcs
+          - ec2:DescribeSecurityGroups
+          - ec2:DescribeSubnets
+          - ec2:DescribeRouteTables
+          - ec2:DescribeDhcpOptions
+          - ec2:DescribeNetworkInterfaces
+          - ec2:CreateVpcEndpoint
+          - ec2:CreateNetworkInterface
+          - ec2:CreateNetworkInterfacePermission
+          - ec2:DeleteNetworkInterface
+          Resource:
+          - "*"
+        - Effect: Allow
+          Action:
+          - cognito-idp:DescribeUserPoolClient
+          - cognito-idp:UpdateUserPool
+          - cognito-idp:DescribeUserPool
+          - cognito-idp:UpdateUserPoolClient
+          - cognito-idp:ListUsers
+          - cognito-idp:AdminAddUserToGroup
+          Resource:
+          - "*"
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource:
+          - !Sub "arn:aws:lambda:::function:*"
+          
+
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: ECR GetAuthorizationToken is non resource-specific action
+
+Outputs:
+  SageMakerRoleArn:
+    Description: "SageMaker Execution Role for the solution"
+    Value: !GetAtt SageMakerIAMRole.Arn

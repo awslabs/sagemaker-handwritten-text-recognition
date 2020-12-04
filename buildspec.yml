@@ -1,0 +1,22 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 12
+    commands:
+      - pip install --upgrade pip
+  build:
+    commands:
+      - echo "Starting build `date` in `pwd`"
+      - ls .
+      # clean s3 bucket
+      - s3_path="s3://$BUILD_OUTPUT_BUCKET-$BUILD_OUTPUT_REGION/$SOLUTION_NAME"
+      - echo "Clearing existing objects under $s3_path"
+      - aws s3 rm --recursive $s3_path
+      # Run build.sh
+      - ./build.sh $SOLUTION_NAME $BUILD_OUTPUT_BUCKET $BUILD_OUTPUT_REGION
+
+artifacts:
+  files:
+      - "**/*"

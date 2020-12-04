@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Stack for SageMaker-handwriting-recognition cognito deployment"
+
+Parameters:
+  SolutionPrefix:
+    Type: String
+  SageMakerIAMRoleArn:
+    Type: String
+  SolutionsS3BucketNamePrefix:
+    Type: String
+  SolutionName:
+    Type: String
+    
+Resources:
+  RandomDomainName:
+    Type: 'Custom::RandomDomainName'
+    Properties:
+      ServiceToken: !GetAtt StringFunctionsLambda.Arn
+      Function: 'random'
+      Length: 32
+
+  StringFunctionsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: 'lambda.handler'
+      FunctionName: !Sub '${SolutionPrefix}-string-func'
+      Role: !Ref SageMakerIAMRoleArn
+      Runtime: 'python3.8'
+      Code:
+        S3Bucket: !Sub "${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+        S3Key: !Sub "${SolutionName}/build/string-functions.zip"
+      Timeout : 60
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Lambda functions have permission to write to logs
+
+  CognitoUserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: !Sub '${SolutionPrefix}-userpool'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate: 
+          EmailSubject: 'SageMaker Groundtruth labelling job'
+      AutoVerifiedAttributes:
+        - 'email'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UserPoolTags:
+        sagemaker:launch-source: JumpStart
+
+  CognitoUserPoolGroup:
+    Type: 'AWS::Cognito::UserPoolGroup'
+    Properties:
+      GroupName: !Sub '${SolutionPrefix}-userpool-group'
+      UserPoolId: !Ref CognitoUserPool
+
+  CognitoUserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      Domain: !GetAtt RandomDomainName.OutputString
+      UserPoolId: !Ref CognitoUserPool
+
+  CognitoUserPoolClient:
+    Type: "AWS::Cognito::UserPoolClient"
+    Properties:
+      ClientName: !Sub ${SolutionPrefix}-client
+      GenerateSecret: false
+      UserPoolId: !Ref CognitoUserPool
+      CallbackURLs:
+        - !Sub "https://to/be/replaced"
+      AllowedOAuthScopes:
+        - 'email'
+        - 'profile'
+        - 'openid'
+      AllowedOAuthFlows:
+        - 'code'
+        - 'implicit'
+      GenerateSecret: true
+      ExplicitAuthFlows:
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - 'COGNITO'
+      AllowedOAuthFlowsUserPoolClient: true
+      
+Outputs:
+  CognitoUserPoolDomain:
+    Value: !Ref CognitoUserPoolDomain
+
+  CognitoUserPool:
+    Value: !Ref CognitoUserPool
+
+  CognitoUserPoolGroup:
+    Value: !Ref CognitoUserPoolGroup
+
+  CognitoUserPoolClient:
+    Value: !Ref CognitoUserPoolClient
+  

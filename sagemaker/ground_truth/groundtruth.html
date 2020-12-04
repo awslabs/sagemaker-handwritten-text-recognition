@@ -1,0 +1,106 @@
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+
+<crowd-form>
+  <crowd-polygon
+    id="annotator"
+    name="transcription"
+    
+    src="{{ task.input.source-ref | grant_read_access }}"
+    header="Handwritten OCR labelling. Press 'Instructions' in the left to start labelling the data."
+    labels="['placeholder']"
+  >
+    <short-instructions>
+      
+      <h3>
+        Add new text label:
+      </h3>
+      <crowd-input name="_customLabel" id="customLabel" required></crowd-input>
+      
+      <h3>
+        Text type:
+      </h3>
+      
+      <select id="type" required>
+          <option value="handwritten">Handwritten</option>
+          <option value="printed">Printed</option>
+      </select>
+      
+      <h3>
+        Line number:
+      </h3>
+      (which line is the text on)
+      
+      <crowd-input name="_customLineNum" id="customLineNum", type="number" required></crowd-input>
+
+      <br>
+      <crowd-button id="addLabel">Add</crowd-button>
+            
+      <br><br><br>
+      <h3>
+      Manage labels
+      </h3>
+      <div id="labelsSection"></div>
+      
+      <br><br><br>
+      Press "More instructions" at the bottom of the screen for a detailed explanation of how to transcribe the text.
+    </short-instructions>
+    
+    <full-instructions>
+      <h3>Detail labelling instructions</h3>
+      <ol>
+        <li>
+          You would have to type in the word that you are about to label in "Add new text label".
+        </li>
+        <li>
+          In the "Text type" drop down selection box, you would choose if the text is <i>handwritten</i> or <i>printed</i>.
+        </li>
+        <li>
+          You would also have to select which line the text is on.
+          <br>
+          <img src="https://sagemaker-solutions-us-east-2.s3.us-east-2.amazonaws.com/sagemaker-handwriting-recognition/docs/side_bar.png">
+        </li>
+        <li>
+          Press the <strong>"Add"</strong> button and the label should appear in both "Managed labels" on the left and "Labels" on the right of the screen.
+          <br>
+          <img src="https://sagemaker-solutions-us-east-2.s3.us-east-2.amazonaws.com/sagemaker-handwriting-recognition/docs/select_label.png">
+        </li>
+        <li>
+          Press your new label on the right of the screen and click the image to draw a polygon.
+          <br>
+          <img src="https://sagemaker-solutions-us-east-2.s3.us-east-2.amazonaws.com/sagemaker-handwriting-recognition/docs/line_num.png">
+          Notes: Please ensure that the polygons only contain 4 points and you do not repeat each label only correspond to 1 word.
+        </li>
+      </ol>
+
+    </full-instructions>
+  </crowd-polygon>
+</crowd-form>
+
+<script>
+  document.addEventListener('all-crowd-elements-ready', function(event) {
+    document.querySelector('crowd-polygon').labels = [];  
+  });
+  
+  function populateLabelsSection() {
+    labelsSection.innerHTML = '';
+    annotator.labels.forEach(function(label) {
+      const labelContainer = document.createElement('div');
+      labelContainer.innerHTML = label + ' <a href="javascript:void(0)">(Delete)</a>';
+      labelContainer.querySelector('a').onclick = function() {
+        annotator.labels = annotator.labels.filter(function(l) {
+          return l !== label;
+        });
+        populateLabelsSection();
+      };
+      labelsSection.appendChild(labelContainer);
+    });
+  }
+
+  addLabel.onclick = function() {
+    annotator.labels = annotator.labels.concat([
+      "Text: " + customLabel.value + ", Line #: " + customLineNum.value + ", Type: " + type.value]);
+    customLabel.value = null;
+    
+    populateLabelsSection();
+  };
+</script>

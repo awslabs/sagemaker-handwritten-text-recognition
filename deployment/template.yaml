@@ -1,0 +1,436 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "(SA0004) - sagemaker-handwriting-recognition
+  Handwritten text recognition (HTR) OCR with Amazon SageMaker.
+  Version 1"
+  
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Solution Configuration"
+        Parameters:
+          - SolutionPrefix
+          - StackVersion
+          - SolutionName
+      -
+        Label:
+          default: "SageMaker Configuration"
+        Parameters:
+          - S3BucketName
+          - SageMakerNotebookInstanceType
+          - SageMakerTrainingInstanceType
+          - SagemakerInferenceInstanceType
+
+    ParameterLabels:
+      S3BucketName:
+        default: "S3 bucket to be created for the solution. Note: Bucket name will be prefixed with sagemaker-soln-"
+      SolutionPrefix:
+        default: "Solution resources name prefix"
+      SageMakerNotebookInstanceType:
+        default: "SageMaker Notebook instance type"
+      SageMakerTrainingInstanceType:
+        default: "SageMaker training instance type"
+      SageMakerInferenceInstanceType:
+        default: "SageMaker endpoint instance type"
+        
+Parameters:
+  SolutionPrefix:
+    Type: String
+    Default: "sagemaker-soln-htr"
+    Description: |
+      Used to name resources created as part of this stack (and inside nested stacks too).
+      Can be the same as the stack name used by AWS CloudFormation, but this field has extra
+      constraints because it's used to name resources with restrictions (e.g. Amazon S3 bucket
+      names cannot contain capital letters).
+    AllowedPattern: '^sagemaker-soln-htr[a-z0-9\-]{0,20}$'
+    ConstraintDescription: |
+      Only allowed to use lowercase letters, hyphens and/or numbers.
+      Should also start with 'sagemaker-soln-htr' for permission management.
+  SolutionName:
+    Description: |
+      Prefix for the solution name. Needs to be sagemaker-handwriting-recognition
+      or begin with  'sagemaker-handwriting-recognition-' followed by a set of letters and hyphens.
+      Used to specify a particular directory on S3, that can correspond to a development branch.
+    Type: String
+    Default: "sagemaker-handwriting-recognition"
+    AllowedPattern: '^sagemaker-handwriting-recognition-?[a-z\-]*$'
+  IamRole:
+    Type: String
+    Default: ""
+    Description: |
+      IAM Role that will be attached to the resources created by this CloudFormation to grant them permissions to
+      perform their required functions. This role should allow SageMaker and Lambda perform the required actions like
+      creating training jobs and processing jobs. If left blank, the template will attempt to create a role for you.
+      This can cause a stack creation error if you don't have privileges to create new roles.
+  S3BucketName:
+    Description: Amazon S3 Bucket used to store datasets and models.
+    Type: String
+  SageMakerNotebookInstanceType:
+    Description: "SageMaker notebook instance type."
+    Type: String
+    Default: "ml.t2.medium"
+  SageMakerTrainingInstanceType:
+    Description: "Please note that GPU instances are recommended"
+    Type: String
+    Default: "default"
+    AllowedValues:
+      - "ml.p3.2xlarge"
+      - "ml.g4dn.4xlarge"
+      - "ml.p2.xlarge"
+      - "default"
+  SageMakerInferenceInstanceType:
+    Description: "Please note that GPU instances are recommended"
+    Type: String
+    Default: "default"
+    AllowedValues:
+      - "ml.p2.xlarge"
+      - "ml.g4dn.xlarge"
+      - "default"
+  CreateSageMakerNotebookInstance:
+    Description: "Whether to launch sagemaker notebook instance"
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  StackVersion:
+    Description: |
+      CloudFormation Stack version.
+      Use 'release' version unless you are customizing the 
+      CloudFormation templates and solution artifacts.
+    Type: String
+    Default: release
+    AllowedValues: 
+      - release
+      - development
+ 
+Conditions:
+  CreateClassicSageMakerResources: !Equals [ !Ref CreateSageMakerNotebookInstance, "true" ]
+  CreateCustomSolutionRole: !Equals [!Ref IamRole, ""]
+  FindBestTrainingInstanceType: !Equals [!Ref SageMakerTrainingInstanceType, "default"]
+  FindBestInferenceInstanceType: !Equals [!Ref SageMakerInferenceInstanceType, "default"]
+  
+Mappings: 
+  SolutionsS3BucketNamePrefix: 
+    development: 
+      Prefix: sagemaker-solutions-devo
+    release: 
+      Prefix: sagemaker-solutions-prod
+  SageMakerNames:
+    Model:
+      Name: "model"
+    Endpoint:
+      Name: "endpoint"
+  SagemakerInstanceTypeRegion:
+    ap-east-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    ap-northeast-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    ap-northeast-2:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    ap-southeast-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    ap-southeast-2:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    ap-south-1:
+      "SageMakerTrainingInstanceType": "ml.p2.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    sa-east-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    eu-west-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    eu-west-2:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    eu-west-3:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    eu-central-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    eu-north-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    eu-south-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    us-east-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    us-east-2:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    us-west-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    us-west-2:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.p2.xlarge"
+    ca-central-1:
+      "SageMakerTrainingInstanceType": "ml.p3.2xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+    me-south-1:
+      "SageMakerTrainingInstanceType": "ml.g4dn.8xlarge"
+      "SageMakerInferenceInstanceType": "ml.g4dn.xlarge"
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    UpdateReplacePolicy: "Retain"
+    Properties:
+      BucketName: !Sub "${SolutionPrefix}-${S3BucketName}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          -
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: Avoids user having to manually create an Amazon S3 bucket for logs.
+          - id: W51
+            reason: Current default access policy is sufficient.
+
+  GroundTruthStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/grouthtruth.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        SolutionName: !Ref SolutionName
+        SageMakerIAMRoleArn: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+  GroundTruthCognitoStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/cognito.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        SageMakerIAMRoleArn: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        SolutionName: !Ref SolutionName
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+  SolutionAssistantStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/solution-assistant.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+ 
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        SolutionName: !Ref SolutionName
+        SageMakerIAMRoleArn: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        SageMakerModelName: !Sub
+          - "${SolutionPrefix}-${Name}"
+          - Name:
+              Fn::FindInMap: [SageMakerNames, "Model", Name]
+        SageMakerEndpointName: !Sub
+          - "${SolutionPrefix}-${Name}"
+          - Name:
+              Fn::FindInMap: [SageMakerNames, "Endpoint", Name]
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+  PermissionsStack:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: CreateCustomSolutionRole
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/sagemaker-permissions.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+  EndpointStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/endpoint.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        SageMakerIAMRoleArn: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        SageMakerInferenceInstanceType:
+          Fn::If:
+            - FindBestInferenceInstanceType
+            - !FindInMap [ SagemakerInstanceTypeRegion, !Ref "AWS::Region", SageMakerInferenceInstanceType]
+            - SageMakerInferenceInstanceType
+        SolutionName: !Ref SolutionName
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+          
+  SageMakerStack:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: CreateClassicSageMakerResources
+    Properties:
+      TemplateURL: !Sub
+        - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/deployment/sagemaker.yaml"
+        - SolutionsS3BucketNamePrefix:
+            Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        SageMakerIAMRoleArn: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        PrelabelLambdaArn: !GetAtt GroundTruthStack.Outputs.PrelabelLambdaArn
+        PostlabelLambdaArn: !GetAtt GroundTruthStack.Outputs.PostlabelLambdaArn
+        CognitoUserPool: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPool
+        CongitoClientID: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPoolClient
+        CognitoUserPoolGroup: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPoolGroup
+        SageMakerNotebookInstanceType: !Ref SageMakerNotebookInstanceType
+        SageMakerTrainingInstanceType:
+          Fn::If:
+            - FindBestTrainingInstanceType
+            - !FindInMap [ SagemakerInstanceTypeRegion, !Ref "AWS::Region", SageMakerTrainingInstanceType]
+            - SageMakerTrainingInstanceType
+        SageMakerInferenceInstanceType:
+          Fn::If:
+            - FindBestInferenceInstanceType
+            - !FindInMap [ SagemakerInstanceTypeRegion, !Ref "AWS::Region", SageMakerInferenceInstanceType]
+            - SageMakerInferenceInstanceType
+        SageMakerModelName: !Sub
+          - "${SolutionPrefix}-${Name}"
+          - Name:
+              Fn::FindInMap: [SageMakerNames, "Model", Name]
+        SageMakerDemoEndpointName: !Sub "${SolutionPrefix}-demo"
+        SageMakerEndpointName: !Sub
+          - "${SolutionPrefix}-${Name}"
+          - Name:
+              Fn::FindInMap: [SageMakerNames, "Endpoint", Name]
+        SolutionName: !Ref SolutionName
+        SolutionsS3BucketNamePrefix: !Sub
+          - "${SolutionsS3BucketNamePrefix}"
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+Outputs:
+  AwsAccountId:
+    Description: "AWS Account ID to be passed downstream to the notebook instance"
+    Value: !Ref AWS::AccountId
+
+  AwsRegion:
+    Description: "AWS Region to be passed downstream to the notebook instance"
+    Value: !Ref AWS::Region
+
+  S3Bucket:
+    Description: "Solution S3 bucket name"
+    Value: !Ref S3Bucket
+
+  SolutionPrefix:
+    Description: "Solution Prefix for naming SageMaker transient resources"
+    Value: !Ref SolutionPrefix
+
+  SageMakerIamRole:
+    Description: "SageMaker Execution Role for the Solution"
+    Value: !If [CreateCustomSolutionRole, !GetAtt PermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+
+  SolutionS3BucketName:
+    Description: "Bucket containing the solution"
+    Value: !Sub
+      - "${SolutionsS3BucketNamePrefix}-${AWS::Region}/${SolutionName}"
+      - SolutionsS3BucketNamePrefix:
+          Fn::FindInMap: [SolutionsS3BucketNamePrefix, Ref: StackVersion, Prefix]
+
+  SageMakerDemoEndpointName:
+    Description: "SageMaker endpoint demo name"
+    Value: !Sub "${SolutionPrefix}-demo"
+
+  SageMakerModelName:
+    Description: "SageMaker endpoint model name"
+    Value: !Sub
+      - "${SolutionPrefix}-${Name}"
+      - Name:
+          Fn::FindInMap: [SageMakerNames, "Model", Name]
+
+  SageMakerEndpointName:
+    Description: "SageMaker endpoint name"
+    Value: !Sub
+      - "${SolutionPrefix}-${Name}"
+      - Name:
+          Fn::FindInMap: [SageMakerNames, "Endpoint", Name]
+
+  CognitoUserPool:
+    Description: "Userpool name"
+    Value: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPool
+
+  CognitoUserPoolGroup:
+    Description: "Userpool group name"
+    Value: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPoolGroup
+
+  CongitoClientID:
+    Description: "cognito client ID"
+    Value: !GetAtt GroundTruthCognitoStack.Outputs.CognitoUserPoolClient
+
+  PreLabelLambdaArn:
+    Description: "GroundTruth prelabelling lambda ARN"
+    Value: !GetAtt GroundTruthStack.Outputs.PrelabelLambdaArn
+
+  PostLabelLambdaArn:
+    Description: "GroundTruth postlabelling lambda ARN"
+    Value: !GetAtt GroundTruthStack.Outputs.PostlabelLambdaArn
+
+  SageMakerInferenceInstanceType:
+    Description: "SageMaker inference instance type"
+    Value:
+      Fn::If:
+        - FindBestInferenceInstanceType
+        - !FindInMap [ SagemakerInstanceTypeRegion, !Ref "AWS::Region", SageMakerInferenceInstanceType]
+        - SageMakerInferenceInstanceType
+
+  SageMakerNotebookInstanceType:
+    Description: "SageMaker notebook instance type"
+    Value: !Ref SageMakerNotebookInstanceType
+
+  SageMakerTrainingInstanceType:
+    Description: "SageMaker training instance type"
+    Value:
+      Fn::If:
+        - FindBestTrainingInstanceType
+        - !FindInMap [ SagemakerInstanceTypeRegion, !Ref "AWS::Region", SageMakerTrainingInstanceType]
+        - SageMakerTrainingInstanceType
+

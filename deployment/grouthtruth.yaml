@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Stack for SageMaker-handwriting-recognition Ground Truth deployment"
+
+Parameters:
+  SolutionPrefix:
+    Type: String
+  S3BucketName:
+    Type: String
+  SolutionsS3BucketNamePrefix:
+    Type: String
+  SolutionName:
+    Type: String
+  SageMakerIAMRoleArn:
+    Type: String
+    
+Resources:
+  PrelabellingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "lambda_function.lambda_handler"
+      FunctionName: !Sub "${SolutionPrefix}-gt-preLabelingFunction"
+      Role: !Ref SageMakerIAMRoleArn
+      Runtime: "python3.8"
+      Code:
+        S3Bucket: !Sub "${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+        S3Key: !Sub "${SolutionName}/build/pre-label-gt.zip"
+      Timeout : 60
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Lambda functions have permission to write to logs
+
+  PostlabellingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "lambda_function.lambda_handler"
+      FunctionName: !Sub "${SolutionPrefix}-gt-postLabelingFunction"
+      Role: !Ref SageMakerIAMRoleArn
+      Runtime: "python3.8"
+      Code:
+        S3Bucket: !Sub "${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+        S3Key: !Sub "${SolutionName}/build/post-label-gt.zip"
+      Timeout : 60
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Lambda functions have permission to write to logs
+
+Outputs:
+  PrelabelLambdaArn:
+    Description: "PrelabellingLambdaFunction"
+    Value: !GetAtt PrelabellingLambdaFunction.Arn
+
+  PostlabelLambdaArn:
+    Description: "PostlabellingLambdaFunction"
+    Value: !GetAtt PostlabellingLambdaFunction.Arn
