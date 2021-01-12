@@ -37,7 +37,6 @@ As of September 1, 2020, the Amazon SageMaker training cost (excluding notebook 
 ### Launch the solution
 
 While logged on to your AWS account, click on the link to quick create the AWS CloudFormation Stack for the region you want to run your notebook:
-​
 
 <table>
   <tr>
@@ -49,12 +48,13 @@ While logged on to your AWS account, click on the link to quick create the AWS C
     <td>Oregon</td>
     <td>us-west-2</td>
     <td align="center">
-      <a href="https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/create/review?templateURL=https://sagemaker-solutions-prod-us-west-2.s3-us-west-2.amazonaws.com/sagemaker-handwriting-recognition/deployment/template.yaml&stackName=sagemaker-soln-htr">
+      <a href="https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/create/review?templateURL=https://sagemaker-solutions-prod-us-west-2.s3-us-west-2.amazonaws.com/sagemaker-handwriting-recognition/deployment/template.yaml&stackName=sagemaker-soln-htr&param_SolutionPrefix=sagemaker-soln-htr-handwriting&param_S3BucketName=bucket">
         <img src="docs/launch_button.svg" height="30">
       </a>
     </td>
   </tr>
 </table>
+
 
 Enter your desired bucket name is in the **SageMaker Configurations section**.
 
