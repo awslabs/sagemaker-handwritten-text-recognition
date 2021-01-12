@@ -101,6 +101,13 @@ Resources:
               echo '  "SageMakerTrainingInstanceType": "${SageMakerTrainingInstanceType}"' >> stack_outputs.json
               echo '}' >> stack_outputs.json
 
+              python source/set_kernelspec.py --notebook 0_demo_notebook.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+              python source/set_kernelspec.py --notebook 1_Introduction.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+              python source/set_kernelspec.py --notebook 2_label_own_data.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+              python source/set_kernelspec.py --notebook 3_data_visualisation.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+              python source/set_kernelspec.py --notebook 4_model_training.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+              python source/set_kernelspec.py --notebook 5_endpoint_updates.ipynb --display-name conda_mxnet_p36 --kernel conda_mxnet_p36
+
               EOF
   
 Outputs:
